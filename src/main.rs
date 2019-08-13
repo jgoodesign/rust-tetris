@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate colour;
+
 type Pos = (i32, i32);
 type TetPos = [Pos; 4];
 
@@ -33,18 +36,22 @@ fn gen(t: TetType) -> Tetromino {
     }
 }
 
-fn check(a: u32) -> bool {
-    a == 1
+fn render(current: &TetPos) {
+    for grid_y in 0..15 {
+        for grid_x in 0..15 {
+            if current.iter().any(|&(x, y)| x == grid_x && y == grid_y) {
+                yellow!("#");
+            } else {
+                print!("-");
+            }
+        }
+        println!(" ");
+    }
 }
 
 fn main() {
-    println!("{:?}", check(1));
+    let p = gen(TetType::O);
+    let current = &(p.pos)((4, 5));
 
-    let p: Tetromino = gen(TetType::L);
-
-    for row in &(p.pos)((4, 0)) {
-        println!("{:?}", row);
-    }
-
-    println!("test");
+    render(current);
 }
