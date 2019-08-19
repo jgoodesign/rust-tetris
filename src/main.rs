@@ -43,68 +43,75 @@ fn gen(t: TetType) -> Tetromino {
     }
 }
 
-fn render(blocks: &[Tetromino], tick: u16) {
-    //how to pass this in function?
-    let stdout = stdout();
-    let mut stdout = stdout.lock().into_raw_mode().unwrap();
-    //render base grid
-    //TODO: get proper terminal size
-    for grid_y in 1..15 {
-        for grid_x in 1..15 {
-            write!(stdout, "{}-", cursor::Goto(grid_x, grid_y)).unwrap();
+fn render_empty(x: usize, y: usize) {
+    //cursor is 1 indexed!
+    print!("{}-", cursor::Goto(x as u16 + 1, y as u16 + 1));
+}
+
+fn render_active(x: usize, y: usize) {
+    print!(
+        "{}{}#{}",
+        cursor::Goto(x as u16 + 1, y as u16 + 1),
+        color::Fg(color::Yellow),
+        style::Reset
+    );
+}
+
+fn render(grid: &[[GridPoint; W]; H]) {
+    for (y, row) in grid.iter().enumerate() {
+        for (x, point) in row.iter().enumerate() {
+            match point {
+                GridPoint::Empty => render_empty(x, y),
+                _ => render_active(x, y),
+            };
         }
     }
 
-    blocks.iter().for_each(|block| {
-        let current = &(block.position)((1, cmp::min(tick, 15)));
-        current.iter().for_each(|&(x, y)| {
-            write!(
-                stdout,
-                "{}{}#{}",
-                cursor::Goto(x, y),
-                color::Fg(color::Yellow),
-                style::Reset
-            )
-            .unwrap();
-        });
-    });
-
-    write!(stdout, "{}{}", style::Reset, cursor::Goto(1, 16)).unwrap();
+    // print!("{}{}", style::Reset, cursor::Goto(1, H as u16 + 1));
+    //do i need this here?
+    stdout().flush().unwrap();
 }
 
-fn main() {
-    let stdout = stdout();
-    let mut stdout = stdout.lock().into_raw_mode().unwrap();
-    let mut stdin = async_stdin().bytes();
+#[derive(Clone, Copy)]
+enum GridPoint {
+    Empty,
+    Active,
+    Locked,
+}
 
-    write!(stdout, "{}{}", clear::All, cursor::Goto(1, 1)).unwrap();
+const W: usize = 16;
+const H: usize = 20;
+
+fn main() {
+    // let mut stdin = async_stdin().bytes();
+
+    //clears / resets display
+    print!("{}{}", clear::All, cursor::Goto(1, 1));
 
     let mut blocks: Vec<Tetromino> = vec![];
+    let mut grid = [[GridPoint::Empty; W]; H];
 
     let p = gen(TetType::O);
-    blocks.push(p);
-
-    let p2 = gen(TetType::L);
-    blocks.push(p2);
+    // blocks.push(p);
+    let current = (p.position)((1, 1));
+    push_block(&mut grid, current);
 
     let mut tick = 1;
 
     loop {
-        // write!(stdout, "{}", clear::All).unwrap();
-
-        // let b = stdin.next();
-        // write!(stdout, "\r{:?}    <- This demonstrates the async read input char. Between each update a 100 ms. is waited, simply to demonstrate the async fashion. \n\r", b).unwrap();
         if tick > 100 {
             break;
         }
 
         tick += 1;
-        stdout.flush().unwrap();
 
         thread::sleep(Duration::from_millis(50));
-        // stdout.write_all(b"# ").unwrap();
-        render(&blocks, tick);
-        write!(stdout, "{}", cursor::Goto(1, 16)).unwrap();
-        stdout.flush().unwrap();
+        render(&grid);
     }
+}
+
+fn push_block(grid: &mut [[GridPoint; W]; H], current: TetPos) {
+    current.iter().for_each(|&(x, y)| {
+        grid[y as usize][x as usize] = GridPoint::Active;
+    });
 }
