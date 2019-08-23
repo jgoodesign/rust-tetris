@@ -1,6 +1,7 @@
 extern crate termion;
 
 use std::cmp;
+use std::collections::HashMap;
 use std::io::{stdout, Read, Write};
 use std::thread;
 use std::time::Duration;
@@ -57,7 +58,10 @@ fn render_active(x: usize, y: usize) {
     );
 }
 
-fn render(grid: &[[GridPoint; W]; H]) {
+fn render(grid: &[[GridPoint; W]; H], blocks: &Vec<Tetromino>) {
+    //reset output
+    print!("{}{}", clear::All, cursor::Goto(1, 1));
+
     for (y, row) in grid.iter().enumerate() {
         for (x, point) in row.iter().enumerate() {
             match point {
@@ -79,6 +83,16 @@ enum GridPoint {
     Locked,
 }
 
+impl GridPoint {
+    //helper method on enum for filtering
+    fn is_active(&self) -> bool {
+        match *self {
+            GridPoint::Active => true,
+            _ => false,
+        }
+    }
+}
+
 const W: usize = 16;
 const H: usize = 20;
 
@@ -88,13 +102,13 @@ fn main() {
     //clears / resets display
     print!("{}{}", clear::All, cursor::Goto(1, 1));
 
-    let mut blocks: Vec<Tetromino> = vec![];
+    let mut active_blocks: Vec<Tetromino> = vec![];
     let mut grid = [[GridPoint::Empty; W]; H];
 
     let p = gen(TetType::O);
-    // blocks.push(p);
-    let current = (p.position)((1, 1));
-    push_block(&mut grid, current);
+    active_blocks.push(p);
+    // let current = (p.position)((1, 1));
+    // push_block(&mut grid, current);
 
     let mut tick = 1;
 
@@ -104,9 +118,9 @@ fn main() {
         }
 
         tick += 1;
-
+        // move_block(&mut grid, (0, tick));
         thread::sleep(Duration::from_millis(50));
-        render(&grid);
+        render(&grid, &active_blocks);
     }
 }
 
@@ -114,4 +128,18 @@ fn push_block(grid: &mut [[GridPoint; W]; H], current: TetPos) {
     current.iter().for_each(|&(x, y)| {
         grid[y as usize][x as usize] = GridPoint::Active;
     });
+}
+
+fn move_block(grid: &mut [[GridPoint; W]; H], (increment_x, increment_y): (usize, usize)) {
+    for y in 1..grid.len() {
+        let row = grid[y - 1];
+        for x in 1..row.len() {
+            if grid[y - 1][x - 1].is_active() {
+                grid[y - 1][x - 1] = GridPoint::Empty;
+                let new_y = cmp::max(y - 1 + increment_y, grid.len() - 1);
+                let new_x = cmp::max(x - 1 + increment_x, row.len() - 1);
+                grid[new_y][new_x] = GridPoint::Active;
+            }
+        }
+    }
 }
