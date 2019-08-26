@@ -1,7 +1,5 @@
 extern crate termion;
 
-use std::cmp;
-use std::collections::HashMap;
 use std::io::{stdout, Read, Write};
 use std::thread;
 use std::time::Duration;
@@ -44,57 +42,54 @@ fn gen(t: TetType) -> Tetromino {
     }
 }
 
-fn render_empty(x: usize, y: usize) {
+fn render_empty(x: u16, y: u16) {
     //cursor is 1 indexed!
-    print!("{}-", cursor::Goto(x as u16 + 1, y as u16 + 1));
+    print!("{}-", cursor::Goto(x + 1, y + 1));
 }
 
-fn render_active(x: usize, y: usize) {
+fn render_active(x: u16, y: u16) {
     print!(
         "{}{}#{}",
-        cursor::Goto(x as u16 + 1, y as u16 + 1),
+        cursor::Goto(x + 1, y + 1),
         color::Fg(color::Yellow),
         style::Reset
     );
 }
 
-fn render(grid: &[[GridPoint; W]; H], blocks: &Vec<Tetromino>) {
+fn render_locked(x: u16, y: u16) {
+    print!(
+        "{}{}#{}",
+        cursor::Goto(x + 1, y + 1),
+        color::Fg(color::Blue),
+        style::Reset
+    );
+}
+
+fn render(active: &[Pos], locked: &[Pos]) {
     //reset output
     print!("{}{}", clear::All, cursor::Goto(1, 1));
 
-    for (y, row) in grid.iter().enumerate() {
-        for (x, point) in row.iter().enumerate() {
-            match point {
-                GridPoint::Empty => render_empty(x, y),
-                _ => render_active(x, y),
-            };
+    for y in 0..H {
+        for x in 0..W {
+            render_empty(x, y);
         }
     }
 
-    // print!("{}{}", style::Reset, cursor::Goto(1, H as u16 + 1));
+    active.iter().for_each(|(x, y)| {
+        render_active(*x, *y);
+    });
+
+    locked.iter().for_each(|(x, y)| {
+        render_locked(*x, *y);
+    });
+
+    print!("{}{}", style::Reset, cursor::Goto(1, H + 2));
     //do i need this here?
     stdout().flush().unwrap();
 }
 
-#[derive(Clone, Copy)]
-enum GridPoint {
-    Empty,
-    Active,
-    Locked,
-}
-
-impl GridPoint {
-    //helper method on enum for filtering
-    fn is_active(&self) -> bool {
-        match *self {
-            GridPoint::Active => true,
-            _ => false,
-        }
-    }
-}
-
-const W: usize = 16;
-const H: usize = 20;
+const W: u16 = 16;
+const H: u16 = 20;
 
 fn main() {
     // let mut stdin = async_stdin().bytes();
@@ -102,44 +97,59 @@ fn main() {
     //clears / resets display
     print!("{}{}", clear::All, cursor::Goto(1, 1));
 
-    let mut active_blocks: Vec<Tetromino> = vec![];
-    let mut grid = [[GridPoint::Empty; W]; H];
+    let mut active_blocks: Vec<Pos> = vec![];
+    let mut locked_blocks: Vec<Pos> = vec![];
 
     let p = gen(TetType::O);
-    active_blocks.push(p);
-    // let current = (p.position)((1, 1));
-    // push_block(&mut grid, current);
+    let current = (p.position)((0, 0));
+    active_blocks.extend(&current);
 
     let mut tick = 1;
 
     loop {
-        if tick > 100 {
+        if tick > 500 {
+            break;
+        }
+        if locked_blocks.iter().any(|&(_, y)| y <= 1) {
+            //game over
             break;
         }
 
         tick += 1;
-        // move_block(&mut grid, (0, tick));
-        thread::sleep(Duration::from_millis(50));
-        render(&grid, &active_blocks);
-    }
-}
+        render(&active_blocks, &locked_blocks);
+        //would be nice to have destructuring assignment here
+        let (new_active_blocks, new_locked_blocks) =
+            move_blocks(&active_blocks, &locked_blocks, (0, 1));
+        active_blocks = new_active_blocks;
+        locked_blocks = new_locked_blocks;
 
-fn push_block(grid: &mut [[GridPoint; W]; H], current: TetPos) {
-    current.iter().for_each(|&(x, y)| {
-        grid[y as usize][x as usize] = GridPoint::Active;
-    });
-}
-
-fn move_block(grid: &mut [[GridPoint; W]; H], (increment_x, increment_y): (usize, usize)) {
-    for y in 1..grid.len() {
-        let row = grid[y - 1];
-        for x in 1..row.len() {
-            if grid[y - 1][x - 1].is_active() {
-                grid[y - 1][x - 1] = GridPoint::Empty;
-                let new_y = cmp::max(y - 1 + increment_y, grid.len() - 1);
-                let new_x = cmp::max(x - 1 + increment_x, row.len() - 1);
-                grid[new_y][new_x] = GridPoint::Active;
-            }
+        if active_blocks.is_empty() {
+            active_blocks.extend(&current);
         }
+
+        thread::sleep(Duration::from_millis(50));
     }
+}
+
+fn move_blocks(
+    active: &Vec<Pos>,
+    locked: &Vec<Pos>,
+    (increment_x, increment_y): (u16, u16),
+) -> (Vec<Pos>, Vec<Pos>) {
+    let mut new_active: Vec<Pos> = active
+        .iter()
+        .map(|(x, y)| (x + increment_x, y + increment_y))
+        .collect();
+    let mut new_locked = locked.clone();
+
+    if new_active
+        .iter()
+        .any(|&(x, y)| y >= H - 1 || locked.contains(&(x, y + 1)))
+    {
+        //moves all from active to locked, leaving active empty
+        new_locked.append(&mut new_active);
+        return (new_active, new_locked);
+    }
+
+    (new_active, new_locked)
 }
