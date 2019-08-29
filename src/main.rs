@@ -140,10 +140,10 @@ fn main() {
             match key {
                 Key::Char('q') => break,
                 Key::Left => {
-                    increment.0 += -1;
+                    increment.0 += -2;
                 }
                 Key::Right => {
-                    increment.0 += 1;
+                    increment.0 += 2;
                 }
                 _ => {}
             }
@@ -169,9 +169,20 @@ fn move_blocks(
     locked: &Vec<Pos>,
     (increment_x, increment_y): (i16, i16),
 ) -> (Vec<Pos>, Vec<Pos>) {
+    let right_collision = active.iter().any(|&(x, _)| x >= W as i16 - 1);
+    let left_collision = active.iter().any(|&(x, _)| x <= 0);
+
     let mut new_active: Vec<Pos> = active
         .iter()
-        .map(|(x, y)| (x + increment_x, y + increment_y))
+        .map(|&(x, y)| {
+            if right_collision && increment_x > 0 {
+                return (x, y + increment_y);
+            }
+            if left_collision && increment_x < 0 {
+                return (x, y + increment_y);
+            }
+            (x + increment_x, y + increment_y)
+        })
         .collect();
     let mut new_locked = locked.clone();
 
