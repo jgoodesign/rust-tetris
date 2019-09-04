@@ -149,12 +149,23 @@ fn main() {
             }
         }
 
-        //would be nice to have destructuring assignment here
-        let (new_active_blocks, new_locked_blocks) =
-            move_blocks(&active_blocks, &locked_blocks, increment);
+        active_blocks = active_blocks
+            .iter()
+            .map(|&(x, y)| {
+                if collision(x, increment.0) {
+                    return (x, y + increment.1);
+                }
+                (x + increment.0, y + increment.1)
+            })
+            .collect();
 
-        active_blocks = new_active_blocks;
-        locked_blocks = new_locked_blocks;
+        if active_blocks
+            .iter()
+            .any(|&(x, y)| hit_bottom((x, y), &locked_blocks))
+        {
+            //moves all from active to locked, leaving active empty
+            locked_blocks.append(&mut active_blocks);
+        }
 
         if active_blocks.is_empty() {
             active_blocks.extend(&current);
@@ -164,36 +175,13 @@ fn main() {
     }
 }
 
-fn move_blocks(
-    active: &Vec<Pos>,
-    locked: &Vec<Pos>,
-    (increment_x, increment_y): (i16, i16),
-) -> (Vec<Pos>, Vec<Pos>) {
-    let right_collision = active.iter().any(|&(x, _)| x >= W as i16 - 1);
-    let left_collision = active.iter().any(|&(x, _)| x <= 0);
+fn collision(position_x: i16, increment_x: i16) -> bool {
+    let right_collision = (position_x + increment_x >= W as i16) & (increment_x > 0);
+    let left_collision = (position_x + increment_x < 0) & (increment_x < 0);
 
-    let mut new_active: Vec<Pos> = active
-        .iter()
-        .map(|&(x, y)| {
-            if right_collision && increment_x > 0 {
-                return (x, y + increment_y);
-            }
-            if left_collision && increment_x < 0 {
-                return (x, y + increment_y);
-            }
-            (x + increment_x, y + increment_y)
-        })
-        .collect();
-    let mut new_locked = locked.clone();
+    right_collision || left_collision
+}
 
-    if new_active
-        .iter()
-        .any(|&(x, y)| y >= H as i16 - 1 || locked.contains(&(x, y + 1)))
-    {
-        //moves all from active to locked, leaving active empty
-        new_locked.append(&mut new_active);
-        return (new_active, new_locked);
-    }
-
-    (new_active, new_locked)
+fn hit_bottom((x, y): (i16, i16), locked_blocks: &[Pos]) -> bool {
+    (y >= H as i16 - 1) || locked_blocks.contains(&(x, y + 1))
 }
